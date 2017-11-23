@@ -1,0 +1,95 @@
+package com.fei.pathmeasureview;
+
+import android.animation.ValueAnimator;
+import android.content.Context;
+import android.graphics.Canvas;
+import android.graphics.Color;
+import android.graphics.Paint;
+import android.graphics.Path;
+import android.graphics.PathMeasure;
+import android.graphics.RectF;
+import android.util.AttributeSet;
+import android.view.View;
+
+/**
+ * Created by Administrator on 2017/11/23.
+ */
+public class PathView extends View {
+
+    private PathMeasure pathMeasure;
+    private Path searchPath;
+    private Path circlePath;
+    private Paint mPaint;
+    private ValueAnimator animator;
+    private float value;
+    private int vWidth;
+    private int vHeight;
+
+    public PathView(Context context) {
+        this(context, null);
+    }
+
+    public PathView(Context context, AttributeSet attrs) {
+        this(context, attrs, -1);
+    }
+
+    public PathView(Context context, AttributeSet attrs, int defStyleAttr) {
+        super(context, attrs, defStyleAttr);
+        init();
+    }
+
+    private void init() {
+        mPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        mPaint.setColor(Color.WHITE);
+        mPaint.setStrokeWidth(8);
+        mPaint.setStyle(Paint.Style.STROKE);
+
+        animator = ValueAnimator.ofFloat(0, 1).setDuration(2000);
+        animator.setRepeatCount(ValueAnimator.INFINITE);
+        animator.addUpdateListener(new ValueAnimator.AnimatorUpdateListener() {
+            @Override
+            public void onAnimationUpdate(ValueAnimator valueAnimator) {
+                value = (float) valueAnimator.getAnimatedValue();
+                invalidate();
+            }
+        });
+
+        searchPath = new Path();
+        RectF searchRect = new RectF(-100, -100, 100, 100);
+        searchPath.addArc(searchRect, 45, 359.9f);
+
+        circlePath = new Path();
+        RectF circleRect = new RectF(-200, -200, 200, 200);
+        circlePath.addArc(circleRect, 45, 359.9f);
+
+        float[] pos = new float[2];
+        pathMeasure = new PathMeasure(circlePath, false);
+        pathMeasure.getPosTan(0, pos, null);
+        searchPath.lineTo(pos[0], pos[1]);
+
+        pathMeasure.setPath(searchPath, false);
+    }
+
+    @Override
+    protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
+        super.onMeasure(widthMeasureSpec, heightMeasureSpec);
+
+        if (vWidth == 0) {
+            vWidth = getMeasuredWidth();
+            vHeight = getMeasuredHeight();
+            animator.start();
+        }
+    }
+
+    @Override
+    protected void onDraw(Canvas canvas) {
+        super.onDraw(canvas);
+
+        canvas.drawColor(Color.BLUE);
+        canvas.translate(vWidth / 2, vHeight / 2);
+
+        Path path = new Path();
+        pathMeasure.getSegment(value * pathMeasure.getLength(), pathMeasure.getLength(), path, true);
+        canvas.drawPath(path, mPaint);
+    }
+}
