@@ -1,5 +1,6 @@
 package com.fei.pathmeasureview;
 
+import android.animation.Animator;
 import android.animation.ValueAnimator;
 import android.content.Context;
 import android.graphics.Canvas;
@@ -9,10 +10,12 @@ import android.graphics.Path;
 import android.graphics.PathMeasure;
 import android.graphics.RectF;
 import android.util.AttributeSet;
+import android.util.Log;
 import android.view.View;
 
 /**
- * Created by Administrator on 2017/11/23.
+ * @author Administrator
+ * @date 2017/11/23
  */
 public class PathView extends View {
 
@@ -24,6 +27,16 @@ public class PathView extends View {
     private float value;
     private int vWidth;
     private int vHeight;
+    private State mCurrentState;
+    private int count = 0;
+    private Path tempPath;
+
+    public enum State {
+        NONE,
+        STARTING,
+        SEARCHING,
+        ENDING;
+    }
 
     public PathView(Context context) {
         this(context, null);
@@ -39,11 +52,12 @@ public class PathView extends View {
     }
 
     private void init() {
-        mPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-        mPaint.setColor(Color.WHITE);
-        mPaint.setStrokeWidth(8);
-        mPaint.setStyle(Paint.Style.STROKE);
+        initPaint();
+        initPath();
+        initAnimator();
+    }
 
+    private void initAnimator() {
         animator = ValueAnimator.ofFloat(0, 1).setDuration(2000);
         animator.setRepeatCount(ValueAnimator.INFINITE);
         animator.addUpdateListener(new ValueAnimator.AnimatorUpdateListener() {
@@ -54,6 +68,47 @@ public class PathView extends View {
             }
         });
 
+        animator.addListener(new Animator.AnimatorListener() {
+            @Override
+            public void onAnimationStart(Animator animator) {
+                Log.i("tag","start");
+            }
+
+            @Override
+            public void onAnimationEnd(Animator animator) {
+                Log.i("tag","end");
+
+            }
+
+            @Override
+            public void onAnimationCancel(Animator animator) {
+                Log.i("tag","cancle");
+            }
+
+            @Override
+            public void onAnimationRepeat(Animator animator) {
+                Log.i("tag","repeat");
+                if (mCurrentState == State.STARTING) {
+                    //开始动画结束
+                    mCurrentState = State.SEARCHING;
+                    pathMeasure.setPath(circlePath, false);
+                } if (mCurrentState == State.SEARCHING) {
+                    count++;
+                    if (count > 3) {
+                        mCurrentState = State.ENDING;
+                        pathMeasure.setPath(searchPath, false);
+                    }
+                } else if (mCurrentState == State.ENDING) {
+                    mCurrentState = State.NONE;
+                    PathView.this.animator.removeAllListeners();
+                    PathView.this.animator.cancel();
+                }
+            }
+        });
+    }
+
+    private void initPath() {
+        tempPath = new Path();
         searchPath = new Path();
         RectF searchRect = new RectF(-100, -100, 100, 100);
         searchPath.addArc(searchRect, 45, 359.9f);
@@ -70,13 +125,20 @@ public class PathView extends View {
         pathMeasure.setPath(searchPath, false);
     }
 
+    private void initPaint() {
+        mPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        mPaint.setColor(Color.WHITE);
+        mPaint.setStrokeWidth(8);
+        mPaint.setStyle(Paint.Style.STROKE);
+    }
+
     @Override
     protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
         super.onMeasure(widthMeasureSpec, heightMeasureSpec);
-
         if (vWidth == 0) {
             vWidth = getMeasuredWidth();
             vHeight = getMeasuredHeight();
+            mCurrentState = State.STARTING;
             animator.start();
         }
     }
@@ -88,8 +150,28 @@ public class PathView extends View {
         canvas.drawColor(Color.BLUE);
         canvas.translate(vWidth / 2, vHeight / 2);
 
-        Path path = new Path();
-        pathMeasure.getSegment(value * pathMeasure.getLength(), pathMeasure.getLength(), path, true);
-        canvas.drawPath(path, mPaint);
+        switch (mCurrentState) {
+            case NONE:
+                canvas.drawPath(searchPath, mPaint);
+                break;
+            case STARTING:
+                tempPath.reset();
+                pathMeasure.getSegment(value * pathMeasure.getLength(), pathMeasure.getLength(), tempPath, true);
+                canvas.drawPath(tempPath, mPaint);
+                break;
+            case SEARCHING:
+                tempPath.reset();
+                float end = value * pathMeasure.getLength();
+                float start = end - ((0.5f - Math.abs(value - 0.5f)) * 400f);
+                pathMeasure.getSegment(start, end, tempPath, true);
+                canvas.drawPath(tempPath, mPaint);
+                break;
+            case ENDING:
+                tempPath.reset();
+                pathMeasure.getSegment((1 - value) * pathMeasure.getLength(), pathMeasure.getLength(), tempPath, true);
+                canvas.drawPath(tempPath, mPaint);
+                break;
+        }
     }
 }
+
